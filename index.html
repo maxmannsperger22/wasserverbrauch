@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dein Wasserverbrauch</title>
+    <style>
+        /* --- GRUNDLAYOUT --- */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+            overflow: hidden; /* Verhindert Scrollen der ganzen Seite */
+        }
+
+        /* --- APP WRAPPER (SIDEBAR + MAIN) --- */
+        #app-wrapper {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* --- SIDEBAR (Links) --- */
+        #sidebar {
+            width: 250px;
+            background-color: #111;
+            border-right: 1px solid #333;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            z-index: 20;
+        }
+
+        #sidebar h2 {
+            color: #81d4fa;
+            font-size: 1.3em;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+        }
+
+        .stats-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-size: 1.1em;
+        }
+
+        .stats-list li {
+            background: rgba(255, 255, 255, 0.05);
+            margin-bottom: 10px;
+            padding: 12px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #stat-optimiert-container {
+            border: 1px solid #69f0ae;
+            background: rgba(105, 240, 174, 0.1);
+        }
+
+        /* --- HAUPTBEREICH --- */
+        #main-area {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #000;
+            position: relative;
+        }
+
+        /* --- SPIEL-CONTAINER (16:9 Format) --- */
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 177.78vh; /* Erzwingt max Breite basierend auf Höhe für 16:9 */
+            aspect-ratio: 16 / 9; 
+            background-color: #050505;
+            background-size: contain; 
+            background-position: center;
+            background-repeat: no-repeat;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        /* =========================================================
+           DER TEXT-RAHMEN (FA01 ANPASSUNG) 
+        ========================================================= */
+        .text-frame {
+            position: absolute;
+            top: 14%;    
+            bottom: 20%; 
+            left: 15%;   
+            right: 15%;  
+            
+            /* Internes Layout */
+            padding: 20px;
+            overflow-y: auto; 
+            text-align: left;
+            font-size: 1.3vw; 
+            line-height: 1.5;
+            
+            background: rgba(0, 0, 0, 0.4); 
+            border-radius: 10px;
+            transition: opacity 0.4s ease;
+        }
+
+        /* Anpassung für mobile Geräte */
+        @media (max-width: 850px) {
+            #app-wrapper { flex-direction: column; }
+            #sidebar { 
+                width: 100%; 
+                padding: 10px; 
+                border-right: none; 
+                border-bottom: 1px solid #333; 
+            }
+            #sidebar h2 { display: none; }
+            .stats-list {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: space-between;
+                font-size: 0.9em;
+            }
+            .stats-list li {
+                flex: 1 1 45%; 
+                margin: 3px;
+                padding: 8px;
+            }
+            #game-container { aspect-ratio: auto; height: 100%; }
+            .text-frame { top: 5%; bottom: 5%; left: 5%; right: 5%; font-size: 3.5vw; }
+        }
+
+        /* --- TYPOGRAFIE & ELEMENTE --- */
+        h2 { margin-top: 0; color: #4fc3f7; font-size: 1.5em; }
+        h3 { margin-top: 0; color: #81d4fa; }
+        p { margin-bottom: 15px; }
+        
+        .highlight-green { color: #69f0ae; font-weight: bold; }
+        .highlight-orange { color: #ffd54f; font-weight: bold; }
+        .highlight-red { color: #ff5252; font-weight: bold; }
+
+        /* --- BUTTONS --- */
+        .option-btn {
+            display: block;
+            width: 100%;
+            background-color: rgba(13, 71, 161, 0.7);
+            color: #fff;
+            border: 1px solid #1976d2;
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            text-align: left;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        .option-btn:hover {
+            background-color: rgba(25, 118, 210, 0.9);
+            transform: scale(1.01);
+        }
+
+        .action-btn {
+            display: inline-block;
+            background-color: #00b4ff;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 15px;
+            text-decoration: none;
+            text-transform: uppercase;
+            transition: background-color 0.2s;
+        }
+        .action-btn:hover { background-color: #69f0ae; }
+        
+        .action-btn-gold { background-color: #ffd54f; }
+        .action-btn-gold:hover { background-color: #ffca28; }
+
+        /* --- SKIP BUTTON (Unten zentriert) --- */
+        .skip-container {
+            position: absolute;
+            bottom: 5%;
+            width: 100%;
+            text-align: center;
+        }
+        .skip-btn {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px 25px;
+            border-radius: 50px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .skip-btn:hover { background: rgba(255, 255, 255, 0.2); }
+
+        .fullscreen-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            cursor: pointer;
+            z-index: 10;
+        }
+        .center-msg {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            width: 80%;
+        }
+
+        /* Scrollbar für den Rahmen */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #00b4ff; border-radius: 4px; }
+
+        .opt-liste {
+            margin: 15px 0;
+            padding-left: 20px;
+            font-size: 0.9em;
+            color: #ddd;
+        }
+        .opt-liste li { margin-bottom: 8px; }
+
+        /* --- KIOSK: Touch-Bedienung --- */
+        body, html {
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        img { -webkit-user-drag: none; }
+        /* Auf Touchscreens keine "klebenden" Hover-Effekte */
+        @media (hover: none) {
+            .option-btn:hover { background-color: rgba(13, 71, 161, 0.7); transform: none; }
+            .action-btn:hover { background-color: #00b4ff; }
+            .action-btn-gold:hover { background-color: #ffd54f; }
+            .skip-btn:hover { background: rgba(0, 0, 0, 0.6); }
+        }
+        /* KIOSK: Zurück-zum-Kiosk-Button (unten in der Seitenleiste) */
+        #kiosk-back-btn {
+            display: none;
+            margin-top: auto;
+            width: 100%;
+            padding: 14px 12px;
+            background: rgba(255, 255, 255, 0.06);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        #kiosk-back-btn.visible { display: block; }
+        @media (max-width: 850px) {
+            #kiosk-back-btn { margin-top: 6px; padding: 8px; }
+        }
+        .option-btn:active, .action-btn:active, #kiosk-back-btn:active, .skip-btn:active { transform: scale(0.98); }
+        /* --- WEB: Zusatz-Buttons --- */
+        #web-btns { display: none; margin-top: auto; flex-direction: column; gap: 8px; }
+        #web-btns.visible { display: flex; }
+        .web-btn {
+            display: none; padding: 10px 12px; text-align: center; text-decoration: none;
+            background: rgba(255,255,255,0.06); color: #fff; font: bold 0.9em inherit;
+            font-family: inherit; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; cursor: pointer;
+        }
+        .web-btn.visible { display: block; }
+        @media (max-width: 850px) {
+            #web-btns { margin-top: 6px; flex-direction: row; }
+            .web-btn { flex: 1; padding: 6px; }
+        }
+    </style>
+    <!-- KIOSK: jsPDF lokal statt CDN, damit das Spiel offline läuft -->
+    <script src="lib/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<div id="app-wrapper">
+    <div id="sidebar">
+        <h2>Verbrauch</h2>
+        <ul class="stats-list">
+            <li><span>Gesamt:</span> <b id="stat-gesamt">0 L</b></li>
+            <li><span>Direkt:</span> <b id="stat-direkt">0 L</b></li>
+            <li><span>Indirekt:</span> <b id="stat-indirekt">0 L</b></li>
+            <li id="stat-optimiert-container" style="display: none; color: #69f0ae;">
+                <span>Eingespart:</span> <b id="stat-eingespart">0 L</b>
+            </li>
+        </ul>
+        <!-- KIOSK: Spiel verlassen -->
+        <button id="kiosk-back-btn" onclick="zurueckZumKiosk()">← Zurück zum Kiosk</button>
+        <!-- WEB: Vollbild / in neuem Tab öffnen (nur außerhalb des Kiosks) -->
+        <div id="web-btns">
+            <button id="web-fullscreen-btn" class="web-btn" onclick="toggleVollbild()">⛶ Vollbild</button>
+            <a id="web-newtab-btn" class="web-btn" href="./" target="_blank" rel="noopener">↗ In neuem Tab öffnen</a>
+        </div>
+    </div>
+
+    <div id="main-area">
+        <div id="game-container">
+            <div id="ui-layer"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+/* =========================================================
+   DATENBANK: FRAGEN & OPTIMIERUNGEN 
+========================================================= */
+const DB = {
+    fragen: {
+        F01: {
+            id: "F01", frage: "Wie verhältst du dich beim Zähneputzen?", kategorie: "Hygiene", typ: "Direkt",
+            optionen: {
+                A: { text: "Wasser durchgehend laufen lassen", verbrauch: 10, bestwert: 0.25, erklaerung: "Wasser läuft bei voll geöffnetem Wasserhahn ca. 3 Minuten in den Abfluss." },
+                B: { text: "Wasser nur am Anfang und Ende laufen lassen", verbrauch: 1, bestwert: 0.25, erklaerung: "Du lässt den Wasserhahn in Summe ca. 15 Sekunden laufen. Das nicht benötigte Wasser fließt währenddessen in den Abfluss." },
+                C: { text: "Becher benutzen", verbrauch: 0.25, bestwert: 0.25, erklaerung: "Durch den Becher nutzt du nur eine kleine Menge Wasser. Der nicht genutzte Anteil ist minimal." }
+            }
+        },
+        F02: {
+            id: "F02", frage: "Vor der Schule möchtest du dich frisch machen. Wie gehst du vor?", kategorie: "Hygiene", typ: "Direkt",
+            optionen: {
+                A: { text: "Baden", verbrauch: 150, bestwert: 50, erklaerung: "Damit die Badewanne ausreichend mit Wasser gefüllt wird, benötigst du in der Regel deutlich mehr Wasser als beim Duschen." },
+                B: { text: "Entspannende Dusche (10 Minuten Wasser)", verbrauch: 100, bestwert: 50, erklaerung: "Das warme Wasser läuft über den Rücken, aber auch ungenutzt den Abfluss hinunter." },
+                C: { text: "Schnelle Dusche (5 Minuten Wasser)", verbrauch: 50, bestwert: 50, erklaerung: "Du nutzt das Wasser gezielt zum Nassmachen und Abduschen. Dadurch wird das verbrauchte Wasser effizient eingesetzt." }
+            }
+        },
+        F03: {
+            id: "F03", frage: "Du bist spät dran! Wie entscheidest du dich?", kategorie: "Zeitmanagement", typ: "Direkt",
+            optionen: {
+                A: { text: "Später zur Schule kommen und in Ruhe frühstücken", verbrauch: 300, bestwert: 300, erklaerung: "Schöne Idee, aber deine Eltern haben ein Vetorecht.<br>Du isst mürrisch deine Haferflocken und verbrauchst <b>300 Liter</b> Wasser. Das ist mehr als deine bisherige Morgenroutine!" },
+                B: { text: "Hastig frühstücken, um rechtzeitig anzukommen.", verbrauch: 300, bestwert: 300, erklaerung: "Du isst deine Haferflocken zügig auf und bleibst im Zeitplan.<br>Das verbraucht <b>300 Liter</b> Wasser – das ist deutlich mehr als dein gesamter bisheriger Morgen!" }
+            }
+        },
+        F04: {
+            id: "F04", frage: "Wie kommst du zur Schule?", kategorie: "Mobilität", typ: "Indirekt",
+            optionen: {
+                A: { text: "Ich werde mit dem Auto gefahren", verbrauch: 2000, bestwert: 20, erklaerung: "Wasser wird indirekt für die Produktion des Fahrzeugs, Kraftstoffe sowie Bau und Erhalt der Straßen benötigt." },
+                B: { text: "Ich nehme Bus oder Bahn", verbrauch: 250, bestwert: 20, erklaerung: "Der Wasserverbrauch pro Person ist geringer, da sich viele Menschen die Infrastruktur und das Fahrzeug teilen." },
+                C: { text: "Ich laufe oder fahre Fahrrad", verbrauch: 20, bestwert: 20, erklaerung: "Der Verbrauch entsteht primär durch die Herstellung der Kleidung/Schuhe/Fahrrad und die Nahrungsproduktion für die nötige Energie." }
+            }
+        },
+        F05: {
+            id: "F05", frage: "Die Mensa bietet heute drei Gerichte an. Welches nimmst du?", kategorie: "Ernährung", typ: "Indirekt",
+            optionen: {
+                A: { text: "Linsen-Curry mit Reis und Gemüse (vegan)", verbrauch: 500, bestwert: 500, erklaerung: "Da keine tierischen Produkte enthalten sind, ist der Wasserfußabdruck für den Anbau der pflanzlichen Zutaten am geringsten." },
+                B: { text: "Käsespätzle mit Röstzwiebeln und Salat (vegetarisch)", verbrauch: 1000, bestwert: 500, erklaerung: "Durch die enthaltenen tierischen Produkte wie Milch und Käse ist der Wasserverbrauch in der Erzeugung höher als bei veganen Gerichten." },
+                C: { text: "XXL Schnitzel mit Pommes und Rahmsoße (fleischlastig)", verbrauch: 5000, bestwert: 500, erklaerung: "Besonders viel Wasser wird für den Anbau von Futtermitteln und das Tränken der Tiere benötigt." }
+            }
+        },
+        F06: {
+            id: "F06", frage: "Für welches Urlaubsziel entscheidest du dich?", kategorie: "Mobilität", typ: "Indirekt",
+            optionen: {
+                A: { text: "Dubai im Luxushotel", verbrauch: 40, bestwert: 3, erklaerung: "Flug, Betrieb von Pools/Klimaanlagen und die Versorgung in einer Wüstenregion sorgen für einen extrem hohen Wasserfußabdruck." },
+                B: { text: "Spanien in der Ferienwohnung", verbrauch: 10, bestwert: 3, erklaerung: "Der Hauptanteil entsteht durch die Anreise (Flug). Die Ferienwohnung verbraucht weniger Ressourcen als ein großes Hotel." },
+                C: { text: "Schwarzwald im Zelt", verbrauch: 3, bestwert: 3, erklaerung: "Durch den Verzicht auf Flugreisen und den minimalen Energieverbrauch vor Ort ist dies die umweltfreundlichste Wahl." }
+            }
+        },
+        F07: {
+            id: "F07", frage: "Wie entscheidest du dich bei der Nutzung technischer Geräte?", kategorie: "Technik", typ: "Indirekt",
+            optionen: {
+                A: { text: "Neues Tablet kaufen", verbrauch: 12, bestwert: 0.25, erklaerung: "Für ein neues Tablet müssen Rohstoffe gewonnen und verarbeitet werden." },
+                B: { text: "Gebrauchtes Tablet kaufen", verbrauch: 1, bestwert: 0.25, erklaerung: "Ein bereits existierendes Gerät erhält eine längere Lebensdauer, was den Wasserverbrauch schont." },
+                C: { text: "Tablet reparieren lassen", verbrauch: 0.25, bestwert: 0.25, erklaerung: "Die Reparatur verlängert die Lebensdauer und vermeidet die Herstellung eines vollständigen Neugeräts." }
+            }
+        },
+        F08: {
+            id: "F08", frage: "Wie möchtest du dich sportlich betätigen?", kategorie: "Freizeit", typ: "Indirekt",
+            optionen: {
+                A: { text: "Joggen im Freien", verbrauch: 5, bestwert: 5, erklaerung: "Du nutzt vorhandene Wege und benötigst kaum Infrastruktur." },
+                B: { text: "Fußball im Verein", verbrauch: 50, bestwert: 5, erklaerung: "Wasserverbrauch entsteht primär durch die Pflege des Rasens und den Erhalt der Sportanlage." },
+                C: { text: "Eishockey im Stadion", verbrauch: 150, bestwert: 5, erklaerung: "Die aufwendige Kühltechnik und die Eisflächenerhaltung verbrauchen konstant große Mengen Wasser und Energie." }
+            }
+        }
+    },
+    optimierungen: {
+        F01_A: [{ text: "Zähneputzen mit Becher", einsparung: 9.75 }, { text: "Hahn zwischendurch abdrehen", einsparung: 8 }, { text: "Wasserhahn weniger weit aufdrehen", einsparung: 3 }, { text: "Keine Änderung", einsparung: 0 }],
+        F01_B: [{ text: "Umstieg auf Zahnputzbecher", einsparung: 0.75 }, { text: "Dauer beim Laufenlassen halbieren", einsparung: 0.5 }, { text: "Keine Änderung", einsparung: 0 }],
+        F01_C: [{ text: "Geringere Becherfüllung", einsparung: 0.05 }, { text: "Keine Änderung", einsparung: 0 }],
+        F02_A: [{ text: "Tägliches Duschen statt Baden", einsparung: 100 }, { text: "An zwei Tagen/Woche Baden durch Duschen ersetzen", einsparung: 50 }, { text: "Keine Änderung", einsparung: 0 }],
+        F02_B: [{ text: "Duschzeit bewusst halbieren", einsparung: 50 }, { text: "Wasser beim Einseifen abstellen", einsparung: 20 }, { text: "Keine Änderung", einsparung: 0 }],
+        F02_C: [{ text: "Duschkopf mit Spardüse nutzen", einsparung: 10 }, { text: "Kühler duschen", einsparung: 5 }, { text: "Keine Änderung", einsparung: 0 }],
+        F04_A: [{ text: "Öffentliche Verkehrsmittel nutzen", einsparung: 1750 }, { text: "Fahrgemeinschaft bilden", einsparung: 500 }, { text: "1x pro Woche mit dem Rad zur Schule", einsparung: 300 }, { text: "Keine Änderung", einsparung: 0 }],
+        F04_B: [{ text: "Mit dem Rad bei gutem Wetter", einsparung: 230 }, { text: "Strecken kürzer als 2km mit dem Rad", einsparung: 100 }, { text: "Keine Änderung", einsparung: 0 }],
+        F04_C: [{ text: "Andere überreden mitzugehen", einsparung: 300 }, { text: "Verschleißteile nachhaltig warten", einsparung: 5 }, { text: "Keine Änderung", einsparung: 0 }],
+        F05_A: [{ text: "Lebensmittelverschwendung minimieren", einsparung: 100 }, { text: "Regional und saisonal essen", einsparung: 50 }, { text: "Keine Änderung", einsparung: 0 }],
+        F05_B: [{ text: "Lebensmittelverschwendung minimieren", einsparung: 200 }, { text: "1x pro Woche veganes Gericht wählen", einsparung: 100 }, { text: "Regional und saisonal essen", einsparung: 50 }, { text: "Keine Änderung", einsparung: 0 }],
+        F05_C: [{ text: "Geflügel statt Rindfleisch wählen", einsparung: 2000 }, { text: "1x pro Woche fleischfrei (Veggie-Day)", einsparung: 1500 }, { text: "Portionsgröße beim Fleisch reduzieren", einsparung: 1000 }, { text: "Keine Änderung", einsparung: 0 }],
+        F06_A: [{ text: "Urlaubsziel näher wählen (Bahn statt Flug)", einsparung: 30 }, { text: "Unterkunft mit Zertifikat für Nachhaltigkeit", einsparung: 15 }, { text: "Aufenthalt verlängern statt zwei Kurzreisen", einsparung: 10 }, { text: "Keine Änderung", einsparung: 0 }],
+        F06_B: [{ text: "Urlaub in der Region machen", einsparung: 7 }, { text: "Anreise mit der Bahn statt Flug", einsparung: 5 }, { text: "Keine Änderung", einsparung: 0 }],
+        F06_C: [{ text: "Mit dem Rad anreisen", einsparung: 1 }, { text: "Keine Änderung", einsparung: 0 }],
+        F07_A: [{ text: "Defekte Geräte erst prüfen lassen", einsparung: 11.75 }, { text: "Gebrauchtkauf in Erwägung ziehen", einsparung: 11 }, { text: "Keine Änderung", einsparung: 0 }],
+        F07_B: [{ text: "Gerät bei Defekt reparieren statt neu", einsparung: 0.75 }, { text: "Regelmäßige Pflege für längere Haltbarkeit", einsparung: 0.5 }, { text: "Keine Änderung", einsparung: 0 }],
+        F07_C: [{ text: "Akkunutzung optimieren (20-80% Ladestand)", einsparung: 0.05 }, { text: "Keine Änderung", einsparung: 0 }],
+        F08_A: [{ text: "Laufschuhe second-hand oder nachhaltig", einsparung: 1 }, { text: "Längere Nutzungsdauer der Kleidung", einsparung: 1 }, { text: "Keine Änderung", einsparung: 0 }],
+        F08_B: [{ text: "Bewusster mit Wasser im Verein umgehen", einsparung: 5 }, { text: "Keine Änderung", einsparung: 0 }],
+        F08_C: [{ text: "Sportart im Sommer wechseln", einsparung: 140 }, { text: "Häufigkeit im Stadion reduzieren", einsparung: 50 }, { text: "Keine Änderung", einsparung: 0 }]
+    }
+};
+
+/* =========================================================
+   SPIEL-LOGIK & ZUSTAND
+========================================================= */
+const state = {
+    gesamt: 0,
+    direkt: 0,
+    indirekt: 0,
+    eingespart: 0,
+    entscheidungen: {}, // Speichert { frageId: { optionId, potential } }
+    optList: [],        // Liste der zu optimierenden Fragen
+    optIndex: 0,
+    optimierungen: [],  // Speichert die getätigten Optimierungen
+    currentAudio: null
+};
+
+/* =========================================================
+   KIOSK-EINSTELLUNGEN
+========================================================= */
+const KIOSK = {
+    // Läuft das Spiel im Museums-Kiosk (Electron-Launcher)?
+    aktiv: !!window.kioskAPI,
+    // PDF-Speichern im Kiosk anbieten? (Besucher können die Datei dort nicht mitnehmen)
+    pdfImKiosk: false,
+    // Nach so vielen Sekunden ohne Berührung zurück zum Titelbild (0 = aus)
+    leerlaufSekunden: window.kioskAPI ? 180 : 0
+};
+
+// KIOSK: Spielstand vollständig zurücksetzen (neuer Besucher)
+function resetState() {
+    state.gesamt = 0;
+    state.direkt = 0;
+    state.indirekt = 0;
+    state.eingespart = 0;
+    state.entscheidungen = {};
+    state.optList = [];
+    state.optIndex = 0;
+    state.optimierungen = [];
+}
+
+// KIOSK: Leerlauf-Timer. Läuft nicht, solange ein Audio abgespielt wird
+// und nicht auf dem Titelbild.
+let idleTimer = null;
+let currentScene = null;
+function resetIdleTimer() {
+    clearTimeout(idleTimer);
+    if (!KIOSK.leerlaufSekunden || currentScene === 'Start') return;
+    idleTimer = setTimeout(() => {
+        if (state.currentAudio && !state.currentAudio.paused && !state.currentAudio.ended) {
+            resetIdleTimer(); // Erzählung läuft noch – weiter warten
+            return;
+        }
+        goTo('Start');
+    }, KIOSK.leerlaufSekunden * 1000);
+}
+['pointerdown', 'keydown'].forEach(ev =>
+    document.addEventListener(ev, resetIdleTimer, { passive: true }));
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+// KIOSK: Spiel verlassen und zur Spielauswahl zurückkehren
+function zurueckZumKiosk() {
+    clearTimeout(idleTimer);
+    if (state.currentAudio) { state.currentAudio.pause(); state.currentAudio = null; }
+    const api = window.kioskAPI || {};
+    // Falls der Launcher eine eigene Funktion dafür anbietet, diese nutzen
+    for (const name of ['backToLauncher', 'goHome', 'showLauncher', 'loadLauncher', 'home']) {
+        if (typeof api[name] === 'function') { api[name](); return; }
+    }
+    // Sonst direkt zur Launcher-Seite (games/<ordner>/game.html → launcher.html)
+    window.location.href = '../../launcher.html';
+}
+
+// UI Referenzen
+const container = document.getElementById('game-container');
+const uiLayer = document.getElementById('ui-layer');
+
+/* Deutsche Zahlenformatierung (Punkt als Tausendertrenner, Komma als Dezimaltrenner) */
+function formatNumber(num) {
+    return num.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+// Statistik aktualisieren (Sidebar links)
+function updateStats() {
+    document.getElementById('stat-gesamt').innerText = formatNumber(state.gesamt) + " L";
+    document.getElementById('stat-direkt').innerText = formatNumber(state.direkt) + " L";
+    document.getElementById('stat-indirekt').innerText = formatNumber(state.indirekt) + " L";
+
+    const optContainer = document.getElementById('stat-optimiert-container');
+    if (state.eingespart > 0) {
+        optContainer.style.display = 'flex';
+        document.getElementById('stat-eingespart').innerText = "-" + formatNumber(state.eingespart) + " L";
+    } else {
+        optContainer.style.display = 'none';
+    }
+}
+
+// Audio abspielen
+function playAudio(src, onEndedCallback) {
+    if(state.currentAudio) {
+        state.currentAudio.pause();
+        state.currentAudio = null;
+    }
+    try {
+        const audio = new Audio(src);
+        state.currentAudio = audio;
+        audio.play().catch(e => console.log("Audio play error/not found:", e));
+        audio.onended = () => {
+            // KIOSK: nur weiterschalten, wenn dieses Audio noch aktuell ist
+            if (state.currentAudio !== audio) return;
+            resetIdleTimer();
+            if(onEndedCallback) onEndedCallback();
+        };
+        // KIOSK: fehlt die Datei, nicht hängen bleiben, sondern nach kurzer Pause weiter
+        audio.onerror = () => {
+            console.log("Audio fehlt/defekt:", src);
+            setTimeout(() => {
+                if (state.currentAudio === audio && onEndedCallback) onEndedCallback();
+            }, 1500);
+        };
+    } catch(e) {
+        console.log("Audio init error:", e);
+    }
+}
+
+// Hintergrundbild setzen
+function setBackground(imgSrc) {
+    // KIOSK: leerer Wert = schwarz (url('') würde die Seite selbst nachladen)
+    container.style.backgroundImage = imgSrc ? `url('${imgSrc}')` : 'none';
+}
+
+// Hilfsfunktion Min/Max Verbrauch einer Frage
+function getMinMax(fId) {
+    const vals = Object.values(DB.fragen[fId].optionen).map(o => o.verbrauch);
+    return { min: Math.min(...vals), max: Math.max(...vals) };
+}
+
+// Farbe basierend auf Verbrauch
+function getColor(val, min, max) {
+    if(val === min) return "highlight-green";
+    if(val === max) return "highlight-red";
+    return "highlight-orange";
+}
+
+/* =========================================================
+   DOWNLOAD FUNKTION
+========================================================= */
+async function downloadOptimierungen() {
+    if (!window.jspdf) { console.log("jsPDF nicht geladen (lib/jspdf.umd.min.js fehlt?)"); return; }
+    const { jsPDF } = window.jspdf;
+    // Erstellt ein A4-PDF im Hochformat (Portrait)
+    const doc = new jsPDF('p', 'mm', 'a4');
+
+    // Hintergrundbild hinzufügen (muss im selben Ordner liegen wie die HTML)
+    // Achtung: Das Bild wird hier als URL geladen
+    const imgData = 'data:image/jpeg;base64,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8FP0/wDbmcuH/iVf8S/9JiJRS4oxWB1CUUuKMUAJRS4oxQAlFLijFACUUuKMUAJRS4oxQAlFLijFACUUuKMUAJRS4oxQAlFLijFACUUuKMUAJRS4oxQAlFLijFACUUuKMUAJRS4oxQAlFLijFACUUuKMUAJRS4oxQAlFLijFACUUuKMUAJRS4oxQAlFLijFACUUuKMUAJRS4oxQAlFLijFACUUuKMUAJRS4oxQAlFLijFACUUuKMUAJRS4oxQAlFLijFACUUuKMUAJRS4oxQAldD4G/5HGw/7af+i2rn8V0Pgb/kcbD/ALaf+i2rfC/x4eq/M5cf/utX/C/yZztFLijFYHUJRS4ooAKKKKYjodI/5E7xJ/26/wDow1z1dDpH/IneJP8At1/9GGuerer8FP0/9uZy4f8AiVf8S/8ASYhRRRWB1BRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAV0+h+B9S1eOO4lK2lo43LI4yzA5wQv4DqRwcjNX/A/hSPUsapfrutkfEULKcSMO59VHTHcg56YPp1evgcuVRe0q7dEfOZrnToydHD/Et329PM5a1+H2g2+/zY57ndjHmykbfpt2/rnpTrnwBoE8YWOCa2IOd8UpJPt82R+ldPRXr/AFSha3IvuPnP7RxfNze0f3/pseWa18Pr+y3zac32yAZOzpKo5PTo3AHTkk9K46voSuB8c+FI2hm1mxXbIvzXESqSHHdxjoe57Yyeuc+XjctUYupR6br/ACPfyvPJTmqOJ67P/M85ooorxT6cK6HwP/yONh/20/8ARbVz1dD4H/5HGw/7af8Aotq3w38eHqvzOXH/AO61f8L/ACZz1FFFYHUFFFFAC0UUUAdDpH/In+JP+3X/ANGGuerodI/5E/xJ/wBuv/ow1z1b1fgp+n/tzOXD/wASr/iX/pMQooorA6gooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAp0cbyyLHGjPI5CqqjJYnoAKbWhoP/ACMWmf8AX3F/6GKqEeaSRFSXJBy7I9rsLKHTrCCzt1xFCgVeBk+5x3PU+5qxRRX2iSSsj8wlJybk92FFFFAgpskaSxtHIivG4KsrDIYHqCKdRQGx4Rq1l/Z2r3dmFkCwysqeYPmK5+Un6jB/GqddD44/5HC//wC2f/ota56vjq0VCrKK6Nn6ZhajqUITe7Sf3oK6HwP/AMjhYf8AbT/0W1c9XQ+B/wDkcLD/ALaf+i2qsN/Hh6r8yMf/ALrV/wAL/JnPUUUVgdQUUUUAGKMUtFAHQaR/yJ/iP/t2/wDRhrnsV0Okf8if4j/7dv8A0Ya5+t6vwU/T/wBuZy4f+JV/xL/0mImKMUtFYHUJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQB7tpWox6tpVvfRDCzJkrz8rdCOgzggjPtVyvJvB/ir+wpjaXQzYTPuZgPmjbgbvccDI9uPQ+rxyJLGskbq6OAyspyGB6EGvrMHiY16afVbn55mWAnhKzVvdez8v80OooorqPPCo7ieO1t5biZtsUSF3bBOFAyTxUleaeNfFyX6vpWnsr2oI86br5hBzhfYEde/bjrz4nERoQ5nv0OzA4KeLqqEdur7L+tjkL+5+3ajdXezZ58ry7c527iTjPfrVbFLRXyTbbuz9GjFRSitkJiuh8D/8jhYf9tP/AEW1c/XQeB/+RwsP+2n/AKLatsN/Hh6r8zmx/wDutX/C/wAmc9ijFLRWB1CYopaKACilopgb+kf8if4j/wC3b/0Ya5+uh0j/AJE/xH/27f8Aow1z9b1fgh6f+3M5MP8AxKv+Jf8ApMRKKWisDrEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAErY0fxRquiYS2n3wD/AJYS/MnfoOo5OeCM981kUVcJyg+aLszOrSp1Y8lRXXmekWvxMs33/a9Pnixjb5TiTPrnO3Hb1p1z8S7BIwbWwuZXzyspWMY+oLe3avNaK7P7TxFrX/A8v+wsFzX5X6Xf/Dm/rXjHVdY3xeZ9mtWyPJhOMjnhm6ng4I6HHSufpaK46lSdR803dnp0aFOjHkpxshKKWioNRK6DwP8A8jhYf9tP/RbVgV0Hgj/kcLD/ALaf+i2rfDfx4eq/M5Md/utX/C/yZz1FLRWB1iUUtFABRRRTEdBpH/In+I/+3b/0Ya5+ug0j/kT/ABH/ANu3/ow1z9bVfgh6f+3M5cP/ABKv+Jf+kxCiiisTqCiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAK6DwR/yOFh/20/8ARbVz9dB4I/5HCx/7af8Aotq2w38aHqvzOXHf7rV/wv8AJnP0UUVidQUUUUALRRRQB0Gkf8ih4j/7dv8A0Ya5+ug0j/kUPEf/AG7f+jDXP1vV+CHp/wC3M5cP/Eq/4l/6TEKKKKwOoKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAroPBH/I32P8A20/9FtXP10Hgj/kb7H/tp/6Lat8N/Gh6r8zlx3+61f8AC/yZz9FFFYHUFFFFABijFLRQBv6R/wAih4j/AO3b/wBGGufxXQ6T/wAih4j/AO3b/wBGGufrer8EPT/25nLh/wCJV/xL/wBJiJijFLRWB1CYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJ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UUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFb3gv/kbbH/tp/6LasGt7wX/AMjbY/8AbT/0W1bYb+ND1X5nJjv91qf4X+TMGiiisTrCiiigBaKKKYG9pX/IpeIf+3b/ANGGsGt7Sv8AkUvEP/bt/wCjDWDW1X4Yen6s5MP/ABKv+Jf+kxCiiisTrCiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAK3vBf/I22P8A20/9FtWDW94L/wCRtsf+2n/otq2w/wDGh6r8zkx3+61P8L/JmDRRRWJ1hRRRQAUUtFAG7pX/ACKXiH/t2/8ARhrBrf0r/kU/EP8A27f+jDWDW1X4Yen6s5MP/Eq/4l/6TESilorE6xKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBKKWigBK3vBf/ACNtj/20/wDRbVhVveDP+Rssf+2n/otq2w/8aHqvzOTHf7rU/wAL/JmBRS0VidYlFLRQAUUUUCN7Sv8AkU/EP/bt/wCjDWDW9pX/ACKfiH/t2/8ARhrBrar8MPT9WcuH/iVf8X/tsQooorE6gooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACt7wZ/wAjZY/9tP8A0W1YNb3gz/kbLH/tp/6LatsP/Gh6r8zlx3+61P8AC/yMGiiisTqCiiigAopaKAN3Sv8AkU/EP/bt/wCjDWDW/pX/ACKfiD/t2/8ARhrBrar8MPT9WcuH/iVf8X/tsRKKWisTqEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEopaKAEre8Gf8jZZf9tP/AEW1YVb3gz/kbLL/ALaf+i2rbD/xoeq/M5cd/utT/C/yMCilorE6hKKWigBaKKKYG7pX/Ip+IP8At2/9DNYVbulf8in4g/7dv/QzWFW1X4Yen6s5cP8AxKv+L/22IUUUVidQUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABW74N/5Gyy/wC2n/oDVhVu+Df+Rssv+2n/AKA1bYf+ND1X5nLjv91qf4X+RhUUUVidQUUUUAFFFFAjd0r/AJFPxB/27f8AoZrCrd0r/kU/EH/bt/6Gawq2q/DD0/VnLh/4lX/F/wC2xCiiisTqCiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAK3fBv/I2WX/bT/wBAasKt3wb/AMjZZf8AbT/0Bq2w/wDGh6r8zlx3+61P8L/IwqKKKxOoKKKKAFopcUYpgbmlf8ip4g/7d/8A0M1hVvaV/wAip4g/7d//AEM1hYrar8MPT9WcuH/iVf8AF/7bESilxRisTqEopcUYoASilxRigBKKXFGKAEopcUYoASilxRigBKKXFGKAEopcUYoASilxRigBKKXFGKAEopcUYoASilxRigBKKXFGKAEopcUYoASilxRigBKKXFGKAEopcUYoASilxRigBKKXFGKAEopcUYoASilxRigBKKXFGKAEopcUYoASilxRigBKKXFGKAEopcUYoASilxRigBKKXFGKAEopcUYoASilxRigBKKXFGKAEopcUYoASilxRigBK3fBv/I12X/bT/0Bqw8Vu+Df+Rrsv+2n/oDVth/40PVfmcuO/wB1qf4X+Rg0UuKMVidQlFLiigAooooA3dK/5FTxB/27/wDoZrCrd0r/AJFTxB/27/8AoZrCrar8MPT9WcuH/iVf8X/tsQooorE6gooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACt3wb/wAjXZf8D/8AQGrCrd8G/wDI12X/AAP/ANAatsP/ABoeq/M5cd/utT/C/wAjCooorE6gooooAKKKKYG7pX/IqeIP+3f/ANDNYVbulf8AIqeIP+3f/wBDNYVa1fhh6fqzlw/8Sr/i/wDbYhRRRWR1BRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFbvg3/ka7L/gf/oDVhVu+Df8Aka7L/gf/AKA1a4f+ND1X5nLjv91qf4X+RhUUUVkdQUUUUAGKMUtFAG5pf/Iqa/8A9u//AKGawsVvaX/yKmv/APbv/wChmsKtqnww9P1Zy4f+JV/xf+2xExRilorE6hMUYpaKAExRilooATFGKWigBMUYpaKAExRilooATFGKWigBMUYpaKAExRilooATFGKWigBMUYpaKAExRilooATFGKWigBMUYpaKAExRilooATFGKWigBMUYpaKAExRilooATFGKWigBMUYpaKAExRilooATFGKWigBMUYpaKAExRilooATFGKWigBMUYpaKAExRilooATFGKWigBMUYpaKAExRilooATFGKWigBMUYpaKAExRilooATFbvg7/ka7L/gf/oDVh1u+Dv+Rrsv+B/+gNW2H/jQ9V+Zy47/AHWp/hf5GDijFLRWJ1CYopaKAFooooEbml/8irr/AP27/wDoZrDrc0v/AJFXX/8At3/9DNYdbVPhh6fqzlw/8Sr/AIv/AG2IUUUVidQUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABW54O/5Gqy/4H/6A1Ydbng7/karL/gf/oDVth/40PVfmcuO/wB1qf4X+Rh0UUVidQUUUUAFFFFMDc0v/kVdf/7d/wD0M1h1uaX/AMirr/8A27/+hmsOtanww9P1Zy4f+JV/xf8AtsQooorI6gooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACtzwd/yNVl/wP/0Bqw63PB3/ACNVl/wP/wBAatcP/Fj6r8zlx3+61P8AC/yMOiiisjqCiiigBaKKKANzS/8AkVdf/wC3f/0M1h1uaX/yKuv/APbv/wChmsOtqnww9P1Zy4f+JV/xf+2xCiiisTqCiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAK3PB//ACNVl/wP/wBAasOtzwf/AMjVZf8AA/8A0Bq2w/8AFj6r8zlx3+61P8L/ACMOiiisTqCiiigAxRilopiNzS/+RV1//t3/APQzWFit3S/+RW17/t3/APQzWHWtT4Yen6s5sP8AxKv+L/22ImKMUtFZHSJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYrd8H/8AI1WX/A//AEBqw63PB/8AyNNl/wAD/wDQGrXD/wAWPqvzObG/7rU/wv8AIwsUYpaKyOkTFFLRQAUUtFAG3pf/ACK2vf8Abv8A+hmsOt3S/wDkVte/7d//AEM1h1rU+GHp+rOXD/xKv+L/ANtiJRS0VkdQlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlFLRQAlbng/wD5Gmy/4H/6A1Ylbng//kabL/gf/oDVrh/4sfVfmcuN/wB2qf4X+RhUUtFZHUJRS0UAFFFFMDc0v/kVte/7d/8A0M1h1uaX/wAitr3/AG7/APoZrDrWp8MPT9WcuH/iVf8AF/7bEKKKKyOoKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigArc8If8jTZf8D/APQGrDrc8If8jTZ/8D/9AataH8WPqvzOXG/7tU/wv8jDooorI6gooooAWiiigDb0z/kVte/7d/8A0M1iVt6Z/wAitr3/AG7/APoZrErWp8MPT9WcuH/iVf8AF/7bEKKKKyOoKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigArb8If8jTZ/wDA/wD0BqxK2/CH/I02f/A//QGrWh/Fj6r8zlxv+7VP8L/IxKKKKyOoKKKKADFGKWigDb0z/kV9e/7d/wD0M1h4rc0z/kV9e/7d/wD0M1iVrU+GHp+rOXD/AMSr/i/9tiJijFLRWR1CYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmK3PCH/ACNFn/wP/wBAasStvwh/yNFn/wAD/wDQGrWh/Fj6r8zlxv8Au1T/AAv8jDxRilorI6hMUUtFABRS0UxG1pn/ACK+vf8Abv8A+hmsStzTP+RX13/t3/8AQzWJWtT4Yen6s5sP/Eq/4v8A22IlFLRWR0iUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACUUtFACVt+EP+Ros/wDgf/oDVi1t+Ef+Ros/+B/+gNWtD+LH1X5nNjf92qf4X+Rh0UtFZHSJRS0UAFFFFAG3pn/Ir67/ANu//oZrErb0z/kV9d/7d/8A0M1iVrU+GHp+rObD/wASr/i/9tiFFFFZHSFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAVt+Ef8AkaLP/gf/AKA1YlbfhH/kaLP/AIH/AOgNWtD+LH1X5nNjf92qf4X+RiUUUVkdIUUUUALRRRQBt6Z/yK+u/wDbv/6GaxK29M/5FfXf+3f/ANDNYla1Phh6fqzmw/8AEq/4v/bYhRRRWR0hRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFbfhH/AJGiz/4H/wCgNWJW34R/5Giz/wCB/wDoDVrQ/ix9V+ZzY3/dqn+F/kYlFFFZHSFFFFAC4oxRRTEbWmf8ixrv/bv/AOhmsXFbWmf8ixrv/bv/AOhmsWtanww9P1ZzUP4lX/F/7bEMUYoorI6QxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxRiiigAxW14S/5Gez/4H/6A1YtbXhL/AJGez/4H/wCgNWtD+LH1RzY3/dqn+F/kYuKMUUVkdIYooooAKKWigDZ0z/kWNd/7d/8A0M1i1t6Z/wAixrv/AG7/APoZrFrWp8MPT9Wc1D+JV/xf+2xEopaKyOkSilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooAStrwl/wAjPZ/8D/8AQGrGra8Jf8jPZ/8AA/8A0Bq1ofxY+qObG/7tU/wv8jEopaKyOkSilooAKKMUYoA2tM/5FjXf+3f/ANDNYtbemf8AIsa5/wBu/wD6GaxMVrU+GHp+rOah/Eq/4v8A22IUUYoxWR0hRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABRRijFABW14S/wCRns/+B/8AoDVi4rb8Jf8AIz2f/A//AEBq1ofxY+qObG/7tU/wv8jEooxRisjpCijFFAC0UUUwNrTf+RZ1z/t3/wDQzWLW1pv/ACLOuf8Abv8A+hmsWtanww9P1ZzUP4lX/F/7bEKKKKyOkKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAra8J/wDIzWf/AAP/ANAasWtrwn/yM1n/AMD/APQGrWh/Fj6o5sb/ALtU/wAL/IxaKKKyOkKKKKAFooooA2tN/wCRZ1z/ALYf+hmsWtrTf+RZ1z/th/6Gaxa1qfDD0/VnNQ/iVf8AF/7bEKKKKyOkKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAra8J/8jNZ/wDA/wD0Bqxa2vCf/IzWf/A//QGrWh/Fj6o5sb/u1T/C/wAjFooorI6QooooAKKWigDZ03/kWdc/7Yf+hmsWtrTf+RZ1z/th/wChmsatanww9P1Zy0P4lX/F/wC2xEopaKyOoSilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooASilooAStrwn/yM1n/AMD/APQGrGrZ8J/8jNaf8D/9AataH8WPqjlxv+7VP8L/ACMWilorI6hKKWigAooxRimI2dN/5FnXP+2H/oZrGra03/kWdc/7Yf8AoZrFxWtT4Y+n6s5qH8Sr/i/9tiFFGKMVkdIUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYox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'; 
+    doc.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+
+    // Titel-Design
+    doc.setTextColor(255, 255, 255); // Weißer Text
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(24);
+    doc.text("Meine Wasser-Optimierungen", 20, 30);
+
+    // Zusammenfassung
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(14);
+    doc.text(`Gesamteinsparung: ${formatNumber(state.eingespart)} Liter pro Tag`, 20, 45);
+
+    // Liste der Vorsätze
+    let y = 60; // Startposition vertikal
+    state.optimierungen.forEach((opt, index) => {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        doc.text(`${index + 1}. ${opt.frage}`, 20, y);
+        y += 7; // Zeilenabstand
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(11);
+        doc.text(`Vorsatz: ${opt.text} (Ersparnis: ${formatNumber(opt.einsparung)} L)`, 25, y);
+        y += 12; // Abstand zur nächsten Frage
+        
+        // Automatischer Seitenumbruch, falls die Liste zu lang wird
+        if (y > 270) {
+            doc.addPage();
+            y = 20;
+        }
+    });
+
+    // Datei speichern
+    doc.save("Meine_Wasser_Bilanz.pdf");
+}
+
+/* =========================================================
+   SCENE ROUTER
+========================================================= */
+function goTo(sceneId, params = {}) {
+    uiLayer.innerHTML = ""; // Clear UI
+    currentScene = sceneId;
+    resetIdleTimer();
+    
+    if(state.currentAudio) {
+        state.currentAudio.pause();
+        state.currentAudio = null;
+    }
+
+    switch(sceneId) {
+        case 'Start':
+            resetState(); // KIOSK: jeder Start beginnt bei null
+            setBackground('images/Titel.png');
+            uiLayer.innerHTML = `<div class="fullscreen-overlay" onclick="goTo('S00')"></div>`;
+            updateStats();
+            break;
+
+        case 'S00':
+            setBackground('images/Bild0.png');
+            uiLayer.innerHTML = `<div class="skip-container"><button class="skip-btn" onclick="goTo('S01_1')">Überspringen</button></div>`;
+            playAudio('audio/S00.mp3', () => goTo('S01_1'));
+            break;
+
+        case 'S01_1':
+            setBackground(''); // Schwarz
+            uiLayer.innerHTML = `
+                <div class="center-msg"><h2 style="font-family: sans-serif;">Bitte schließe deine Augen und lausche meiner Stimme...</h2></div>
+                <div class="skip-container"><button class="skip-btn" onclick="goTo('S01_2')">Überspringen</button></div>`;
+            playAudio('audio/S01_1.mp3', () => goTo('S01_2'));
+            break;
+
+        case 'S01_2':
+            setBackground('images/Bild1.png');
+            uiLayer.innerHTML = `<div class="skip-container"><button class="skip-btn" onclick="goTo('Question', {id: 'F01'})">Überspringen</button></div>`;
+            playAudio('audio/S01_2E.mp3', () => goTo('Question', {id: 'F01'}));
+            break;
+
+        case 'Question':
+            const q = DB.fragen[params.id];
+            setBackground(`images/FA${params.id.replace('F','')}.png`);
+            
+            let optionsHtml = '';
+            for(let key in q.optionen) {
+                optionsHtml += `<button class="option-btn" onclick="saveAnswer('${q.id}', '${key}')">${q.optionen[key].text}</button>`;
+            }
+
+            uiLayer.innerHTML = `
+                <div class="text-frame">
+                    <h2>${q.frage}</h2>
+                    <br>
+                    ${optionsHtml}
+                </div>
+            `;
+            break;
+
+        case 'Answer':
+            const fId = params.id;
+            const oId = state.entscheidungen[fId].optionId;
+            const frage = DB.fragen[fId];
+            const option = frage.optionen[oId];
+            const limits = getMinMax(fId);
+            
+            setBackground(`images/FA${fId.replace('F','')}.png`);
+
+            let verbrauchText = `${formatNumber(option.verbrauch)} Liter Wasser.`;
+            if(fId === 'F06' || fId === 'F07') {
+                verbrauchText = `${formatNumber(option.verbrauch * 365)} Liter Wasser pro Jahr (${formatNumber(option.verbrauch)} L/Tag).`;
+            }
+
+            let nextAction = '';
+            if(fId === 'F01') nextAction = `goTo('Question', {id: 'F02'})`;
+            else if(fId === 'F02') nextAction = `goTo('AudioExpl', {id: 'E02', next: 'E02_B'})`;
+            else if(fId === 'F03') nextAction = `goTo('AudioExpl', {id: 'E03', next: 'F04'})`; 
+            else if(fId === 'F04') nextAction = `goTo('Question', {id: 'F05'})`;
+            else if(fId === 'F05') nextAction = `goTo('Question', {id: 'F06'})`;
+            else if(fId === 'F06') nextAction = `goTo('Question', {id: 'F07'})`;
+            else if(fId === 'F07') nextAction = `goTo('Question', {id: 'F08'})`;
+            else if(fId === 'F08') nextAction = `goTo('ZWA')`;
+
+            let btnText = (fId === 'F03') ? "WARUM ?" : "Weiter";
+
+            uiLayer.innerHTML = `
+                <div class="text-frame">
+                    <p><b>Entscheidung:</b> ${option.text}</p>
+                    <p>Das verbraucht <span class="${getColor(option.verbrauch, limits.min, limits.max)}">${verbrauchText}</span></p>
+                    <p><i>${option.erklaerung}</i></p>
+                    <button class="action-btn" onclick="${nextAction}">${btnText}</button>
+                </div>
+            `;
+            break;
+
+        case 'AudioExpl':
+            setBackground(`images/${params.id}.png`);
+            uiLayer.innerHTML = `<div class="skip-container"><button class="skip-btn" onclick="handleAudioNext('${params.id}', '${params.next}')">Überspringen</button></div>`;
+            playAudio(`audio/${params.id}.mp3`, () => handleAudioNext(params.id, params.next));
+            break;
+
+        case 'ZWA':
+            setBackground('images/END.png');
+            let anteil = (state.gesamt > 0) ? ((state.direkt / state.gesamt) * 100) : 0;
+            let reflexion = "";
+            if (state.gesamt < 20) reflexion = "Sehr guter Start! Dein Wasserverbrauch ist bisher niedrig.";
+            else if (state.gesamt < 100) reflexion = "Du liegst im mittleren Bereich – hier gibt es noch Einsparpotenzial.";
+            else reflexion = "Dein aktueller Verbrauch ist hoch – kleine Änderungen bewirken viel.";
+
+            initOptimization();
+
+            uiLayer.innerHTML = `
+                <div class="text-frame" style="text-align: center;">
+                    <h2>Zwischenauswertung</h2>
+                    <p>🌍 Gesamt: <b>${formatNumber(state.gesamt)} L</b><br>
+                       🚿 Direkt: <b>${formatNumber(state.direkt)} L</b><br>
+                       🛒 Indirekt: <b>${formatNumber(state.indirekt)} L</b></p>
+                    <p>Direkter Verbrauch: <b>${formatNumber(anteil)} %</b></p>
+                    <p><b>Reflexion:</b> ${reflexion}</p>
+                    <button class="action-btn" onclick="goTo('OptStep')">Weiter zum nächsten Abschnitt</button>
+                </div>
+            `;
+            break;
+
+        case 'OptStep':
+            setBackground('images/END.png');
+            
+            if (state.optIndex >= state.optList.length) {
+                goTo('END_AUDIO');
+                return;
+            }
+
+            let optItem = state.optList[state.optIndex];
+            let optKey = `${optItem.fId}_${optItem.oId}`;
+            let optChoices = DB.optimierungen[optKey] || [];
+
+            let optHtml = '';
+            optChoices.forEach(c => {
+                let safeText = c.text.replace(/'/g, "\\'");
+                optHtml += `<button class="option-btn" onclick="applyOpt('${optItem.fId}', ${c.einsparung}, '${safeText}')">${c.text}</button>`;
+            });
+
+            uiLayer.innerHTML = `
+                <div class="text-frame">
+                    <h3>💧 Optimierung</h3>
+                    <p><b>Frage:</b> ${DB.fragen[optItem.fId].frage}</p>
+                    <p><b>Deine Antwort:</b> ${DB.fragen[optItem.fId].optionen[optItem.oId].text}</p>
+                    <p>Welche dieser Änderungen würdest du im Alltag umsetzen?</p>
+                    ${optHtml}
+                    <button class="action-btn" style="background:#555; color:white; font-size: 0.8em;" onclick="goTo('END_AUDIO')">Optimierung vorzeitig beenden</button>
+                </div>
+            `;
+            break;
+            
+        case 'END_AUDIO':
+            setBackground('images/Bild0.png');
+            uiLayer.innerHTML = `<div class="skip-container"><button class="skip-btn" onclick="goTo('FinalScore')">Überspringen</button></div>`;
+            playAudio('audio/END_E.mp3', () => goTo('FinalScore'));
+            break;
+
+        case 'FinalScore':
+            setBackground('images/END.png');
+            
+            let optimierungsHtml = "";
+            if (state.optimierungen.length > 0) {
+                optimierungsHtml += "<ul class='opt-liste'>";
+                state.optimierungen.forEach(opt => {
+                    optimierungsHtml += `<li><b>${opt.frage}</b><br>-> <i>${opt.text}</i> (Spart: ${formatNumber(opt.einsparung)} L)</li>`;
+                });
+                optimierungsHtml += "</ul>";
+            } else {
+                optimierungsHtml = "<p><i>Du hast keine weiteren Optimierungen vorgenommen.</i></p>";
+            }
+
+            uiLayer.innerHTML = `
+                <div class="text-frame" style="text-align: center;">
+                    <h2>📊 Endauswertung</h2>
+                    <p><b>Gesamtverbrauch (vorher):</b> ${formatNumber(state.gesamt)} L<br>
+                    <b style="color: #69f0ae;">Eingespart:</b> ${formatNumber(state.eingespart)} L</p>
+                    
+		    <h3>💧 Was bedeutet diese Einsparung?</h3>
+
+			<p>
+    			<b>Pro Tag:</b> ${formatNumber(state.eingespart)} Liter<br>
+   			Das entspricht dem Trinkwasserbedarf einer Person für
+    			<b>${Math.round(state.eingespart / 3)}</b> Tage.
+			</p>
+
+			<p>
+    			<b>Pro Jahr:</b> ${formatNumber(state.eingespart * 365)} Liter<br>
+    			Das entspricht dem Trinkwasserbedarf von Köngen (10.000 Einwohner)
+    			für <b>${Math.round((state.eingespart * 365) / (3 * 10000))}</b> Tage.
+			</p>
+
+			<p>
+   			<b>In 80 Jahren:</b> ${formatNumber(state.eingespart * 365 * 80)} Liter<br>
+    			Das entspricht dem Trinkwasserbedarf von Köngen (10.000 Einwohner)
+    			für <b>${Math.round((state.eingespart * 365 * 80) / (3 * 10000 * 30))}</b> Monate.
+			</p>
+                 
+                    <hr style="border-color:#444;">
+                    
+                    <h3>Deine guten Vorsätze:</h3>
+                    <div style="text-align: left; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 10px;">
+                        ${optimierungsHtml}
+                    </div>
+
+                    ${(state.optimierungen.length > 0 && (!KIOSK.aktiv || KIOSK.pdfImKiosk)) ? `<button class="action-btn action-btn-gold" onclick="downloadOptimierungen()">📝 Liste als PDF speichern</button><br>` : ''}
+                    
+                    <button class="action-btn" onclick="goTo('Start')">Spiel beenden</button>
+                </div>
+            `;
+            break;
+    }
+}
+
+/* =========================================================
+   SPEZIELLE ROUTING LOGIK FÜR AUDIO KETTEN
+========================================================= */
+function handleAudioNext(currentId, nextTarget) {
+    if(nextTarget === 'E02_B') goTo('AudioExpl', {id: 'E02_B', next: 'S03'});
+    else if(nextTarget === 'S03') goTo('AudioExpl', {id: 'S03', next: 'F03'});
+    else if(nextTarget === 'F03') goTo('Question', {id: 'F03'});
+    else if(nextTarget === 'F04') goTo('Question', {id: 'F04'});
+}
+
+/* =========================================================
+   DATEN VERARBEITUNG
+========================================================= */
+function saveAnswer(fId, oId) {
+    const q = DB.fragen[fId];
+    const opt = q.optionen[oId];
+    
+    if(state.entscheidungen[fId]) {
+        let oldVal = state.entscheidungen[fId].verbrauch;
+        state.gesamt -= oldVal;
+        if(q.typ === 'Direkt') state.direkt -= oldVal; else state.indirekt -= oldVal;
+    }
+
+    state.gesamt += opt.verbrauch;
+    if(q.typ === 'Direkt') state.direkt += opt.verbrauch; else state.indirekt += opt.verbrauch;
+    
+    let potential = opt.verbrauch - opt.bestwert;
+
+    state.entscheidungen[fId] = {
+        optionId: oId,
+        verbrauch: opt.verbrauch,
+        potential: potential > 0 ? potential : 0
+    };
+
+    updateStats(); 
+    goTo('Answer', {id: fId});
+}
+
+function initOptimization() {
+    state.optList = [];
+    state.optIndex = 0;
+    state.eingespart = 0;
+    state.optimierungen = []; // Leeren, falls man neu startet
+
+    for (let fId in state.entscheidungen) {
+        if (state.entscheidungen[fId].potential > 0) {
+            state.optList.push({
+                fId: fId,
+                oId: state.entscheidungen[fId].optionId,
+                potential: state.entscheidungen[fId].potential
+            });
+        }
+    }
+    state.optList.sort((a, b) => b.potential - a.potential);
+}
+
+function applyOpt(fId, val, optText) {
+    let numVal = parseFloat(val) || 0;
+    state.eingespart += numVal;
+    
+    // Speichere die Entscheidung im neuen Array (wenn etwas eingespart wurde)
+    if (optText !== "Keine Änderung" && numVal > 0) {
+        state.optimierungen.push({
+            frage: DB.fragen[fId].frage,
+            text: optText,
+            einsparung: numVal
+        });
+    }
+
+    updateStats(); 
+    state.optIndex++;
+    goTo('OptStep');
+}
+
+/* =========================================================
+   WEB (GitHub Pages / Google Sites)
+========================================================= */
+function toggleVollbild() {
+    const el = document.documentElement;
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    } else {
+        const req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (req) Promise.resolve(req.call(el)).catch(() => window.open(location.href, '_blank'));
+    }
+}
+
+// Hintergrundbilder vorab laden, damit beim Szenenwechsel nichts schwarz bleibt
+const BILDER = ['Titel', 'Bild0', 'Bild1', 'END', 'E02', 'E02_B', 'E03', 'S03',
+                'FA01', 'FA02', 'FA03', 'FA04', 'FA05', 'FA06', 'FA07', 'FA08'];
+function bilderVorladen() {
+    BILDER.forEach(n => { const i = new Image(); i.src = `images/${n}.png`; });
+}
+
+// SPIEL STARTEN
+window.addEventListener('load', () => {
+    if (KIOSK.aktiv) {
+        document.getElementById('kiosk-back-btn').classList.add('visible');
+    } else {
+        document.getElementById('web-btns').classList.add('visible');
+        const fsMoeglich = document.fullscreenEnabled || document.webkitFullscreenEnabled;
+        if (fsMoeglich) document.getElementById('web-fullscreen-btn').classList.add('visible');
+        // Läuft das Spiel eingebettet (z. B. in Google Sites)? Dann "neuer Tab" anbieten
+        let eingebettet = true;
+        try { eingebettet = window.self !== window.top; } catch (e) {}
+        if (eingebettet) document.getElementById('web-newtab-btn').classList.add('visible');
+    }
+    bilderVorladen();
+    goTo('Start');
+});
+
+</script>
+</body>
+</html>
